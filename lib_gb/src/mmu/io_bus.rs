@@ -17,7 +17,6 @@ pub struct IoBus<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider>{
     pub dma_controller:OamDmaController,
     pub interrupt_handler:InterruptsHandler,
     pub joypad_handler: JoypadHandler<JP>,
-    pub finished_boot:bool,
 
     apu_cycles_counter:u32,
     ppu_cycles:u32,
@@ -87,8 +86,6 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> Memory for IoBus<AD, GFX,
             OBP1_REGISTER_INDEX=> self.ppu.obj_pallete_1_register,
             WY_REGISTER_INDEX => self.ppu.window_pos.y,
             WX_REGISTER_INDEX=> get_wx_register(&self.ppu),
-            //BOOT
-            BOOT_REGISTER_INDEX=> self.finished_boot as u8,
             //Joypad
             JOYP_REGISTER_INDEX => self.joypad_handler.register,
             _=>0xFF
@@ -146,9 +143,7 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> Memory for IoBus<AD, GFX,
             OBP1_REGISTER_INDEX=> handle_obp_pallet_register(value,&mut self.ppu.obj_color_mapping1, &mut self.ppu.obj_pallete_1_register),
             WY_REGISTER_INDEX=> handle_wy_register(value, &mut self.ppu),
             WX_REGISTER_INDEX=> handle_wx_register(value, &mut self.ppu),
-            BOOT_REGISTER_INDEX=> self.finished_boot = value != 0,
             JOYP_REGISTER_INDEX => self.joypad_handler.set_register(value),
-            // TODO: handle gbc registers (expecailly ram and vram)
             _=>{}
         }
     }
@@ -163,7 +158,6 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> IoBus<AD, GFX, JP>{
             dma_controller: OamDmaController::new(),
             interrupt_handler: InterruptsHandler::default(),
             joypad_handler: JoypadHandler::new(joypad_provider),
-            finished_boot:false,
             apu_cycles_counter:0,
             ppu_cycles:0,
             timer_cycles:0,

@@ -69,18 +69,16 @@ impl<'a, JP:JoypadProvider, AD:AudioDevice, GFX:GfxDevice> GameBoy<'a, JP, AD, G
         let pc = self.cpu.program_counter;
 
         //debug
-        if self.mmu.io_bus.finished_boot{
-            let a = *self.cpu.af.high();
-            let b = *self.cpu.bc.high(); 
-            let c = *self.cpu.bc.low();
-            let d = *self.cpu.de.high();
-            let e = *self.cpu.de.low();
-            let f = *self.cpu.af.low();
-            let h = *self.cpu.hl.high();
-            let l = *self.cpu.hl.low();
-            debug!("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})",
-            a,f,b,c,d,e,h,l, self.cpu.stack_pointer, pc, self.mmu.read(pc), self.mmu.read(pc+1), self.mmu.read(pc+2), self.mmu.read(pc+3));
-        }
+        let a = *self.cpu.af.high();
+        let b = *self.cpu.bc.high();
+        let c = *self.cpu.bc.low();
+        let d = *self.cpu.de.high();
+        let e = *self.cpu.de.low();
+        let f = *self.cpu.af.low();
+        let h = *self.cpu.hl.high();
+        let l = *self.cpu.hl.low();
+        debug!("A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})",
+        a,f,b,c,d,e,h,l, self.cpu.stack_pointer, pc, self.mmu.read(pc), self.mmu.read(pc+1), self.mmu.read(pc+2), self.mmu.read(pc+3));
 
         self.cpu.run_opcode(&mut self.mmu)
     }
