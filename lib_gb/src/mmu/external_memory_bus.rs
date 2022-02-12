@@ -1,11 +1,14 @@
 use crate::utils::memory_registers::BOOT_REGISTER_ADDRESS;
-use super::{ram::Ram, carts::Mbc, gb_mmu::BOOT_ROM_SIZE};
+use super::{ram::Ram, carts::Mbc};
+
+pub const GB_BOOT_ROM_SIZE:usize = 0x100;
+pub const GBC_BOOT_ROM_SIZE:usize = 0x900;
 
 #[derive(PartialEq, Eq)]
 enum Bootrom {
     None,
-    Gb([u8;BOOT_ROM_SIZE]),
-    Gbc([u8;0x800])
+    Gb([u8;GB_BOOT_ROM_SIZE]),
+    Gbc([u8;GBC_BOOT_ROM_SIZE])
 }
 
 pub struct ExternalMemoryBus<'a>{
@@ -16,11 +19,11 @@ pub struct ExternalMemoryBus<'a>{
 }
 
 impl<'a> ExternalMemoryBus<'a> {
-    pub fn new(mbc:&'a mut Box<dyn Mbc>, bootrom: [u8;BOOT_ROM_SIZE])->Self{
+    pub fn new(mbc:&'a mut Box<dyn Mbc>, bootrom: [u8;GBC_BOOT_ROM_SIZE])->Self{
         Self{
             mbc,
             ram:Ram::default(),
-            bootrom:Bootrom::Gb(bootrom),
+            bootrom:Bootrom::Gbc(bootrom),
             bootrom_register: 0,
         }
     }
@@ -37,7 +40,7 @@ impl<'a> ExternalMemoryBus<'a> {
             0x0100..=0x01FF=>self.mbc.read_bank0(address),
             0x0200..=0x08FF=>{
                 match self.bootrom {
-                    Bootrom::Gbc(r)=>r[address as usize - 0x100],
+                    Bootrom::Gbc(r)=>r[address as usize],
                     Bootrom::Gb(_) | 
                     Bootrom::None=>self.mbc.read_bank0(address)
                 }

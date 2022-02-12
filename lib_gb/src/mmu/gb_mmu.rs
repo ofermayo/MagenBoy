@@ -1,15 +1,13 @@
-use super::external_memory_bus::ExternalMemoryBus;
-use super::interrupts_handler::InterruptRequest;
-use super::{io_bus::IoBus, memory::*};
-use super::access_bus::AccessBus;
-use crate::keypad::joypad_provider::JoypadProvider;
-use crate::ppu::gfx_device::GfxDevice;
-use crate::{apu::{audio_device::AudioDevice, gb_apu::GbApu}, utils::memory_registers::BOOT_REGISTER_ADDRESS};
-use super::carts::mbc::Mbc;
-use crate::ppu::ppu_state::PpuState;
+use super::{
+    carts::mbc::Mbc, GBC_BOOT_ROM_SIZE, external_memory_bus::ExternalMemoryBus, 
+    interrupts_handler::InterruptRequest, io_bus::IoBus, memory::*, access_bus::AccessBus
+};
+use crate::{
+    ppu::{ppu_state::PpuState, gfx_device::GfxDevice}, keypad::joypad_provider::JoypadProvider, 
+    utils::{bit_masks::flip_bit_u8, memory_registers::BOOT_REGISTER_ADDRESS}, apu::{audio_device::AudioDevice, gb_apu::GbApu}
+};
 use std::boxed::Box;
 
-pub const BOOT_ROM_SIZE:usize = 0x100;
 const HRAM_SIZE:usize = 0x7F;
 
 const BAD_READ_VALUE:u8 = 0xFF;
@@ -122,7 +120,7 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
 }
 
 impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
-    pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>, boot_rom:[u8;BOOT_ROM_SIZE], apu:GbApu<D>, gfx_device:G, joypad_proider:J)->Self{
+    pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>, boot_rom:[u8;GBC_BOOT_ROM_SIZE], apu:GbApu<D>, gfx_device:G, joypad_proider:J)->Self{
         GbMmu{
             io_bus:IoBus::new(apu, gfx_device, joypad_proider),
             external_memory_bus: ExternalMemoryBus::new(mbc, boot_rom),
@@ -132,7 +130,7 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
     }
 
     pub fn new(mbc:&'a mut Box<dyn Mbc>, apu:GbApu<D>, gfx_device: G, joypad_proider:J)->Self{
-        let mut mmu = GbMmu::new_with_bootrom(mbc, [0;BOOT_ROM_SIZE], apu, gfx_device, joypad_proider);
+        let mut mmu = GbMmu::new_with_bootrom(mbc, [0;GBC_BOOT_ROM_SIZE], apu, gfx_device, joypad_proider);
 
         //Setting the bootrom register to be set (the boot sequence has over)
         mmu.write(BOOT_REGISTER_ADDRESS, 1);
@@ -140,9 +138,10 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
         return mmu;
     }
 
-    pub fn cycle(&mut self, m_cycles:u8){
+    pub fn cycle(&mut self, m_cycles:u8, double_speed_mode:bool){
+        flip_bit_u8(&mut self.io_bus.speed_switch_register, 7, double_speed_mode);
         self.oucupied_access_bus = self.io_bus.dma_controller.cycle(m_cycles as u32, &mut self.external_memory_bus, &mut self.io_bus.ppu);
-        self.io_bus.cycle(m_cycles as u32);
+        self.io_bus.cycle(m_cycles as u32, double_speed_mode);
     }
 
     pub fn handle_interrupts(&mut self, master_interrupt_enable:bool)->InterruptRequest{

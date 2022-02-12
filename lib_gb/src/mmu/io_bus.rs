@@ -17,6 +17,9 @@ pub struct IoBus<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider>{
     pub dma_controller:OamDmaController,
     pub interrupt_handler:InterruptsHandler,
     pub joypad_handler: JoypadHandler<JP>,
+    pub speed_switch_register:u8,
+
+    speed_cycle_reminder:u8,
 
     apu_cycles_counter:u32,
     ppu_cycles:u32,
@@ -86,6 +89,8 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> Memory for IoBus<AD, GFX,
             OBP1_REGISTER_INDEX=> self.ppu.obj_pallete_1_register,
             WY_REGISTER_INDEX => self.ppu.window_pos.y,
             WX_REGISTER_INDEX=> get_wx_register(&self.ppu),
+            //GBC speed switch
+            KEY1_REGISTER_INDEX=>self.speed_switch_register | 0b0111_1110,
             //Joypad
             JOYP_REGISTER_INDEX => self.joypad_handler.register,
             _=>0xFF
@@ -143,6 +148,7 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> Memory for IoBus<AD, GFX,
             OBP1_REGISTER_INDEX=> handle_obp_pallet_register(value,&mut self.ppu.obj_color_mapping1, &mut self.ppu.obj_pallete_1_register),
             WY_REGISTER_INDEX=> handle_wy_register(value, &mut self.ppu),
             WX_REGISTER_INDEX=> handle_wx_register(value, &mut self.ppu),
+            KEY1_REGISTER_INDEX=>self.speed_switch_register = value,
             JOYP_REGISTER_INDEX => self.joypad_handler.set_register(value),
             _=>{}
         }
@@ -158,6 +164,8 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> IoBus<AD, GFX, JP>{
             dma_controller: OamDmaController::new(),
             interrupt_handler: InterruptsHandler::default(),
             joypad_handler: JoypadHandler::new(joypad_provider),
+            speed_switch_register:0,
+            speed_cycle_reminder:0,
             apu_cycles_counter:0,
             ppu_cycles:0,
             timer_cycles:0,
@@ -167,9 +175,23 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> IoBus<AD, GFX, JP>{
         }
     }
 
-    pub fn cycle(&mut self, cycles:u32){
-        self.apu_cycles_counter += cycles;
+    pub fn cycle(&mut self, mut cycles:u32, double_speed_mode:bool){
+        // Timer is effected by double speed mode so handling it first
         self.timer_cycles += cycles;
+        
+        if self.timer_event_cycles <= self.timer_cycles{
+            self.cycle_timer();
+        }
+
+        // APU and PPU are not effected by the speed mode
+
+        if double_speed_mode{
+            cycles += self.speed_cycle_reminder as u32;
+            self.speed_cycle_reminder = cycles as u8 & 1;   // Saves the LSB (the bit to indicate odd number)
+            cycles >>= 1;                                   // divide by 2 (discard the LSB bit)
+        }
+
+        self.apu_cycles_counter += cycles;
         
         if !self.ppu_event.is_none(){
             self.ppu_cycles += cycles;
@@ -184,9 +206,6 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> IoBus<AD, GFX, JP>{
             if cycles <= self.ppu_cycles{
                 self.cycle_ppu();
             }
-        }
-        if self.timer_event_cycles <= self.timer_cycles{
-            self.cycle_timer();
         }
         if self.apu_event_cycles <= self.apu_cycles_counter{
             self.cycle_apu();

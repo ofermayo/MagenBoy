@@ -5,7 +5,7 @@ mod mpmc_gfx_device;
 mod audio;
 
 use crate::{audio::{ChosenResampler, multi_device_audio::*, ResampledAudioDevice}, mbc_handler::*, mpmc_gfx_device::MpmcGfxDevice, sdl_joypad_provider::*};
-use lib_gb::{GB_FREQUENCY, apu::audio_device::*, keypad::button::Button, machine::gameboy::GameBoy, mmu::gb_mmu::BOOT_ROM_SIZE, ppu::{gb_ppu::{BUFFERS_NUMBER, SCREEN_HEIGHT, SCREEN_WIDTH}, gfx_device::GfxDevice}};
+use lib_gb::{GB_FREQUENCY, apu::audio_device::*, keypad::button::Button, machine::gameboy::GameBoy, mmu::{GB_BOOT_ROM_SIZE, GBC_BOOT_ROM_SIZE}, ppu::{gb_ppu::{BUFFERS_NUMBER, SCREEN_HEIGHT, SCREEN_WIDTH}, gfx_device::GfxDevice}};
 use std::{fs, env, result::Result, vec::Vec};
 use log::info;
 use sdl2::sys::*;
@@ -129,8 +129,8 @@ fn emulation_thread_main(args: Vec<String>, program_name: String, spsc_gfx_devic
         Result::Ok(file)=>{
             info!("found bootrom!");
     
-            let mut bootrom:[u8;BOOT_ROM_SIZE] = [0;BOOT_ROM_SIZE];
-            for i in 0..BOOT_ROM_SIZE{
+            let mut bootrom:[u8;GBC_BOOT_ROM_SIZE] = [0;GBC_BOOT_ROM_SIZE];
+            for i in 0..GBC_BOOT_ROM_SIZE{
                 bootrom[i] = file[i];
             }
         

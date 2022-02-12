@@ -1,7 +1,7 @@
 use crate::{
     apu::{audio_device::AudioDevice, gb_apu::GbApu},
     cpu::gb_cpu::GbCpu,
-    mmu::{carts::mbc::Mbc, gb_mmu::{GbMmu, BOOT_ROM_SIZE}, memory::Memory}, 
+    mmu::{carts::mbc::Mbc, gb_mmu::GbMmu, memory::Memory, GBC_BOOT_ROM_SIZE}, 
     ppu::gfx_device::GfxDevice, keypad::joypad_provider::JoypadProvider
 };
 use std::boxed::Box;
@@ -12,12 +12,12 @@ pub const CYCLES_PER_FRAME:u32 = 17556;
 
 pub struct GameBoy<'a, JP: JoypadProvider, AD:AudioDevice, GFX:GfxDevice> {
     cpu: GbCpu,
-    mmu: GbMmu::<'a, AD, GFX, JP>
+    mmu: GbMmu::<'a, AD, GFX, JP>,
 }
 
 impl<'a, JP:JoypadProvider, AD:AudioDevice, GFX:GfxDevice> GameBoy<'a, JP, AD, GFX>{
 
-    pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>,joypad_provider:JP, audio_device:AD, gfx_device:GFX, boot_rom:[u8;BOOT_ROM_SIZE])->GameBoy<JP, AD, GFX>{
+    pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>,joypad_provider:JP, audio_device:AD, gfx_device:GFX, boot_rom:[u8;GBC_BOOT_ROM_SIZE])->GameBoy<JP, AD, GFX>{
         GameBoy{
             cpu:GbCpu::default(),
             mmu:GbMmu::new_with_bootrom(mbc, boot_rom, GbApu::new(audio_device), gfx_device, joypad_provider),
@@ -36,7 +36,7 @@ impl<'a, JP:JoypadProvider, AD:AudioDevice, GFX:GfxDevice> GameBoy<'a, JP, AD, G
 
         GameBoy{
             cpu:cpu,
-            mmu:GbMmu::new(mbc, GbApu::new(audio_device), gfx_device, joypad_provider)
+            mmu:GbMmu::new(mbc, GbApu::new(audio_device), gfx_device, joypad_provider),
         }
     }
 
@@ -52,13 +52,13 @@ impl<'a, JP:JoypadProvider, AD:AudioDevice, GFX:GfxDevice> GameBoy<'a, JP, AD, G
                 cpu_cycles_passed = self.execute_opcode();
             }
             
-            self.mmu.cycle(cpu_cycles_passed);
+            self.mmu.cycle(cpu_cycles_passed, self.cpu.double_speed);
             
             //interrupts
             let interrupt_request = self.mmu.handle_interrupts(self.cpu.mie);
             let interrupt_cycles = self.cpu.execute_interrupt_request(&mut self.mmu, interrupt_request);
             if interrupt_cycles != 0{                
-                self.mmu.cycle(interrupt_cycles);
+                self.mmu.cycle(interrupt_cycles, self.cpu.double_speed);
             }
 
             cycles_counter += cpu_cycles_passed as u32 + interrupt_cycles as u32;
