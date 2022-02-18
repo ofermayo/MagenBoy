@@ -1,4 +1,4 @@
-use crate::utils::memory_registers::BOOT_REGISTER_ADDRESS;
+use crate::utils::memory_registers::{BOOT_REGISTER_ADDRESS, SVBK_REGISTER_ADRRESS};
 use super::{ram::Ram, carts::Mbc};
 
 pub const GB_BOOT_ROM_SIZE:usize = 0x100;
@@ -52,6 +52,7 @@ impl<'a> ExternalMemoryBus<'a> {
             0xD000..=0xDFFF=>self.ram.read_current_bank(address - 0xD000),
             0xE000..=0xFDFF=>self.ram.read_bank0(address - 0xE000),
             BOOT_REGISTER_ADDRESS=>self.bootrom_register,
+            SVBK_REGISTER_ADRRESS=>self.ram.get_bank(),
             _=>std::panic!("Error: attemp to read invalid external memory bus address: {:#X}", address)
         }
     }
@@ -69,6 +70,7 @@ impl<'a> ExternalMemoryBus<'a> {
                     self.bootrom = Bootrom::None
                 }
             }
+            SVBK_REGISTER_ADRRESS=>self.ram.set_bank(value),
             _=>std::panic!("Error: attemp to write invalid external memory bus address: {:#X}", address)
         }
     }

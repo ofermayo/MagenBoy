@@ -2,7 +2,7 @@ use crate::{
     apu::{*,audio_device::AudioDevice, gb_apu::GbApu}, 
     ppu::{gb_ppu::GbPpu, ppu_register_updater::*, gfx_device::GfxDevice},
     timer::{timer_register_updater::*, gb_timer::GbTimer}, 
-    keypad::{joypad_provider::JoypadProvider, joypad_handler::JoypadHandler}
+    keypad::{joypad_provider::JoypadProvider, joypad_handler::JoypadHandler}, utils::memory_registers::VBK_REGISTER_ADDRESS
 };
 use super::{interrupts_handler::*, memory::*,io_ports::*, oam_dma_controller::OamDmaController};
 
@@ -89,6 +89,7 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> Memory for IoBus<AD, GFX,
             OBP1_REGISTER_INDEX=> self.ppu.obj_pallete_1_register,
             WY_REGISTER_INDEX => self.ppu.window_pos.y,
             WX_REGISTER_INDEX=> get_wx_register(&self.ppu),
+            VBK_REGISTER_ADDRESS=>self.ppu.vram.get_bank(),
             //GBC speed switch
             KEY1_REGISTER_INDEX=>self.speed_switch_register | 0b0111_1110,
             //Joypad
@@ -148,6 +149,7 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> Memory for IoBus<AD, GFX,
             OBP1_REGISTER_INDEX=> handle_obp_pallet_register(value,&mut self.ppu.obj_color_mapping1, &mut self.ppu.obj_pallete_1_register),
             WY_REGISTER_INDEX=> handle_wy_register(value, &mut self.ppu),
             WX_REGISTER_INDEX=> handle_wx_register(value, &mut self.ppu),
+            VBK_REGISTER_ADDRESS=>self.ppu.vram.set_bank(value),
             KEY1_REGISTER_INDEX=>self.speed_switch_register = value,
             JOYP_REGISTER_INDEX => self.joypad_handler.set_register(value),
             _=>{}

@@ -96,8 +96,9 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
             0xFE00..=0xFE9F=>self.io_bus.ppu.oam[(address-0xFE00) as usize],
             0xFEA0..=0xFEFF=>0x0,
             0xFF00..=0xFF4F | 
-            0xFF51..=0xFF7F=>self.io_bus.read(address - 0xFF00),
-            0xFF50=>self.external_memory_bus.read(address),
+            0xFF51..=0xFF6F |
+            0xFF71..=0xFF7F=>self.io_bus.read(address - 0xFF00),
+            0xFF50 | 0xFF70=>self.external_memory_bus.read(address),
             0xFF80..=0xFFFE=>self.hram[(address-0xFF80) as usize],
             0xFFFF=>self.io_bus.interrupt_handler.interrupt_enable_flag
         };
