@@ -1,5 +1,5 @@
 use super::{
-    carts::mbc::Mbc, GBC_BOOT_ROM_SIZE, external_memory_bus::ExternalMemoryBus, 
+    carts::mbc::Mbc, external_memory_bus::{ExternalMemoryBus, Bootrom}, 
     interrupts_handler::InterruptRequest, io_bus::IoBus, memory::*, access_bus::AccessBus
 };
 use crate::{
@@ -120,7 +120,7 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
 }
 
 impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
-    pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>, boot_rom:[u8;GBC_BOOT_ROM_SIZE], apu:GbApu<D>, gfx_device:G, joypad_proider:J)->Self{
+    pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>, boot_rom:Bootrom, apu:GbApu<D>, gfx_device:G, joypad_proider:J)->Self{
         GbMmu{
             io_bus:IoBus::new(apu, gfx_device, joypad_proider),
             external_memory_bus: ExternalMemoryBus::new(mbc, boot_rom),
@@ -130,7 +130,7 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
     }
 
     pub fn new(mbc:&'a mut Box<dyn Mbc>, apu:GbApu<D>, gfx_device: G, joypad_proider:J)->Self{
-        let mut mmu = GbMmu::new_with_bootrom(mbc, [0;GBC_BOOT_ROM_SIZE], apu, gfx_device, joypad_proider);
+        let mut mmu = GbMmu::new_with_bootrom(mbc, Bootrom::None, apu, gfx_device, joypad_proider);
 
         //Setting the bootrom register to be set (the boot sequence has over)
         mmu.write(BOOT_REGISTER_ADDRESS, 1);

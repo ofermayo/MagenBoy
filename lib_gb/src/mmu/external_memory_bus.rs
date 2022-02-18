@@ -5,7 +5,7 @@ pub const GB_BOOT_ROM_SIZE:usize = 0x100;
 pub const GBC_BOOT_ROM_SIZE:usize = 0x900;
 
 #[derive(PartialEq, Eq)]
-enum Bootrom {
+pub enum Bootrom {
     None,
     Gb([u8;GB_BOOT_ROM_SIZE]),
     Gbc([u8;GBC_BOOT_ROM_SIZE])
@@ -19,11 +19,11 @@ pub struct ExternalMemoryBus<'a>{
 }
 
 impl<'a> ExternalMemoryBus<'a> {
-    pub fn new(mbc:&'a mut Box<dyn Mbc>, bootrom: [u8;GBC_BOOT_ROM_SIZE])->Self{
+    pub fn new(mbc:&'a mut Box<dyn Mbc>, bootrom: Bootrom)->Self{
         Self{
             mbc,
             ram:Ram::default(),
-            bootrom:Bootrom::Gbc(bootrom),
+            bootrom,
             bootrom_register: 0,
         }
     }

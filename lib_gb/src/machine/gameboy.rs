@@ -1,7 +1,7 @@
 use crate::{
     apu::{audio_device::AudioDevice, gb_apu::GbApu},
     cpu::gb_cpu::GbCpu,
-    mmu::{carts::mbc::Mbc, gb_mmu::GbMmu, memory::Memory, GBC_BOOT_ROM_SIZE}, 
+    mmu::{carts::mbc::Mbc, gb_mmu::GbMmu, memory::Memory, external_memory_bus::Bootrom}, 
     ppu::gfx_device::GfxDevice, keypad::joypad_provider::JoypadProvider
 };
 use std::boxed::Box;
@@ -17,7 +17,7 @@ pub struct GameBoy<'a, JP: JoypadProvider, AD:AudioDevice, GFX:GfxDevice> {
 
 impl<'a, JP:JoypadProvider, AD:AudioDevice, GFX:GfxDevice> GameBoy<'a, JP, AD, GFX>{
 
-    pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>,joypad_provider:JP, audio_device:AD, gfx_device:GFX, boot_rom:[u8;GBC_BOOT_ROM_SIZE])->GameBoy<JP, AD, GFX>{
+    pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>,joypad_provider:JP, audio_device:AD, gfx_device:GFX, boot_rom:Bootrom)->GameBoy<JP, AD, GFX>{
         GameBoy{
             cpu:GbCpu::default(),
             mmu:GbMmu::new_with_bootrom(mbc, boot_rom, GbApu::new(audio_device), gfx_device, joypad_provider),

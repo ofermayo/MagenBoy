@@ -5,7 +5,7 @@ mod mpmc_gfx_device;
 mod audio;
 
 use crate::{audio::{ChosenResampler, multi_device_audio::*, ResampledAudioDevice}, mbc_handler::*, mpmc_gfx_device::MpmcGfxDevice, sdl_joypad_provider::*};
-use lib_gb::{GB_FREQUENCY, apu::audio_device::*, keypad::button::Button, machine::gameboy::GameBoy, mmu::{GB_BOOT_ROM_SIZE, GBC_BOOT_ROM_SIZE}, ppu::{gb_ppu::{BUFFERS_NUMBER, SCREEN_HEIGHT, SCREEN_WIDTH}, gfx_device::GfxDevice}};
+use lib_gb::{GB_FREQUENCY, apu::audio_device::*, keypad::button::Button, machine::gameboy::GameBoy, mmu::{GB_BOOT_ROM_SIZE, GBC_BOOT_ROM_SIZE, external_memory_bus::Bootrom}, ppu::{gb_ppu::{BUFFERS_NUMBER, SCREEN_HEIGHT, SCREEN_WIDTH}, gfx_device::GfxDevice}};
 use std::{fs, env, result::Result, vec::Vec};
 use log::info;
 use sdl2::sys::*;
@@ -125,14 +125,27 @@ fn emulation_thread_main(args: Vec<String>, program_name: String, spsc_gfx_devic
         String::from("dmg_boot.bin")
     };
 
-    let mut gameboy = match fs::read(bootrom_path){
+    let mut gameboy = match fs::read(&bootrom_path){
         Result::Ok(file)=>{
             info!("found bootrom!");
-    
-            let mut bootrom:[u8;GBC_BOOT_ROM_SIZE] = [0;GBC_BOOT_ROM_SIZE];
-            for i in 0..GBC_BOOT_ROM_SIZE{
-                bootrom[i] = file[i];
+            let bootrom = if mbc.is_cgb_mode() && file.len() == GBC_BOOT_ROM_SIZE{
+                let mut b:[u8;GBC_BOOT_ROM_SIZE] = [0;GBC_BOOT_ROM_SIZE];
+                for i in 0..GBC_BOOT_ROM_SIZE{
+                    b[i] = file[i];
+                }
+                Bootrom::Gbc(b)
             }
+            else if file.len() == GB_BOOT_ROM_SIZE{
+                let mut b:[u8;GB_BOOT_ROM_SIZE] = [0;GB_BOOT_ROM_SIZE];
+                for i in 0..GB_BOOT_ROM_SIZE{
+                    b[i] = file[i];
+                }
+                Bootrom::Gb(b)
+            }
+            else{
+                std::panic!("Error! bootrom: \"{}\" is not compatible with the rom machine type", bootrom_path);
+            };
+
         
             GameBoy::new_with_bootrom(&mut mbc, joypad_provider,audio_devices, spsc_gfx_device, bootrom)
         }
