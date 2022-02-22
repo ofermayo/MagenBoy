@@ -141,8 +141,7 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
 
     pub fn cycle(&mut self, m_cycles:u8, double_speed_mode:bool){
         flip_bit_u8(&mut self.io_bus.speed_switch_register, 7, double_speed_mode);
-        self.oucupied_access_bus = self.io_bus.dma_controller.cycle(m_cycles as u32, &mut self.external_memory_bus, &mut self.io_bus.ppu);
-        self.io_bus.cycle(m_cycles as u32, double_speed_mode);
+        self.oucupied_access_bus = self.io_bus.cycle(m_cycles as u32, double_speed_mode, &mut self.external_memory_bus);
     }
 
     pub fn handle_interrupts(&mut self, master_interrupt_enable:bool)->InterruptRequest{

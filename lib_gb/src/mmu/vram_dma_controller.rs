@@ -21,6 +21,17 @@ pub struct VramDmaController{
 }
 
 impl VramDmaController{
+    pub fn new()->Self{
+        Self{
+            dest_address: 0,
+            last_ly: 0,
+            m_cycle_counter: 0,
+            mode: TransferMode::Terminated,
+            remaining_length: 0,
+            source_address: 0
+        }
+    }
+
     pub fn set_source_high(&mut self, value:u8){
         self.source_address = (self.source_address & 0x00FF) | (value as u16) << 8;
     }
