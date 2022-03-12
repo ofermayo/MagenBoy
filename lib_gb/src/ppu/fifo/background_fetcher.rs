@@ -116,12 +116,35 @@ impl BackgroundFetcher{
                         }
                     }
                     else{
-                        for i in (0..SPRITE_WIDTH).rev(){
-                            let mask = 1 << i;
-                            let mut pixel = (low_data & mask) >> i;
-                            pixel |= ((high_data & mask) >> i) << 1;
-                            self.fifo.push((pixel, self.cgb_attribute));
-                            self.current_x_pos += 1;
+                        if self.cgb_mode {
+                            let attributes = self.cgb_attribute.expect("State machine is corrupted, No cgb attributes");
+                            if attributes.attribute.flip_x{
+                                for i in 0..SPRITE_WIDTH{
+                                    let mask = 1 << i;
+                                    let mut pixel = (low_data & mask) >> i;
+                                    pixel |= ((high_data & mask) >> i) << 1;
+                                    self.fifo.push((pixel, self.cgb_attribute));
+                                    self.current_x_pos += 1;
+                                }
+                            }
+                            else{
+                                for i in (0..SPRITE_WIDTH).rev(){
+                                    let mask = 1 << i;
+                                    let mut pixel = (low_data & mask) >> i;
+                                    pixel |= ((high_data & mask) >> i) << 1;
+                                    self.fifo.push((pixel, self.cgb_attribute));
+                                    self.current_x_pos += 1;
+                                }
+                            }
+                        }
+                        else{
+                            for i in (0..SPRITE_WIDTH).rev(){
+                                let mask = 1 << i;
+                                let mut pixel = (low_data & mask) >> i;
+                                pixel |= ((high_data & mask) >> i) << 1;
+                                self.fifo.push((pixel, self.cgb_attribute));
+                                self.current_x_pos += 1;
+                            }
                         }
                     }
                 }
@@ -136,8 +159,21 @@ impl BackgroundFetcher{
         let current_tile_base_data_address = if (lcd_control & BIT_4_MASK) == 0 && (tile_num & BIT_7_MASK) == 0 {0x1000} else {0};
         let current_tile_data_address = current_tile_base_data_address + (tile_num  as u16 * 16);
         return if self.rendering_window{
+            if self.cgb_mode{
+                let attributes = self.cgb_attribute.expect("Error no cgb attribute");
+                if attributes.attribute.flip_y{
+                    
+                    return current_tile_data_address + (2 * (7 - (self.window_line_counter % SPRITE_WIDTH))) as u16;
+                }
+            }
             current_tile_data_address + (2 * (self.window_line_counter % SPRITE_WIDTH)) as u16
         } else{
+            if self.cgb_mode{
+                let attributes = self.cgb_attribute.expect("Error no cgb attribute");
+                if attributes.attribute.flip_y{
+                    return current_tile_data_address + (2 * (7 - ((bg_pos.y as u16 + ly_register as u16 ) % SPRITE_WIDTH as u16)));
+                }
+            }
             current_tile_data_address + (2 * ((bg_pos.y as u16 + ly_register as u16) % SPRITE_WIDTH as u16))
         };
     }

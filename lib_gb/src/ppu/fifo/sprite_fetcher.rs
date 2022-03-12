@@ -49,7 +49,7 @@ impl SpriteFetcher{
                 let tile_num = self.fetcher_state_machine.data.tile_data.expect("State machine is corrupted, No Tile data on FetchLowTIle");
                 let oam_attribute = &self.oam_entries[self.current_oam_entry as usize];
                 let current_tile_data_address = Self::get_current_tile_data_address(ly_register, oam_attribute, sprite_size, tile_num);
-                let low_data = vram.read_current_bank(current_tile_data_address);
+                let low_data = vram.read_bank(current_tile_data_address,oam_attribute.attribute.bank as u8);
                 self.fetcher_state_machine.data.low_tile_data = Some(low_data);
                 self.fetcher_state_machine.advance();
             }
@@ -57,7 +57,7 @@ impl SpriteFetcher{
                 let tile_num= self.fetcher_state_machine.data.tile_data.expect("State machine is corrupted, No Tile data on FetchHighTIle");
                 let oam_attribute = &self.oam_entries[self.current_oam_entry as usize];
                 let current_tile_data_address = Self::get_current_tile_data_address(ly_register, oam_attribute, sprite_size, tile_num);
-                let high_data = vram.read_current_bank(current_tile_data_address + 1);
+                let high_data = vram.read_bank(current_tile_data_address + 1, oam_attribute.attribute.bank as u8);
                 self.fetcher_state_machine.data.high_tile_data = Some(high_data);
                 self.fetcher_state_machine.advance();
             }

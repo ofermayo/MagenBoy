@@ -70,7 +70,7 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> Memory for GbMmu<'a, D, G
                         self.io_bus.ppu.vram.write_current_bank(address-0x8000, value);
                     }
                     else{
-                        log::warn!("bad vram write")
+                        log::warn!("bad vram write: address - {:#X}, value - {:#X}", address, value);
                     }
                 },
                 0xFE00..=0xFE9F=>{

@@ -58,6 +58,7 @@ pub struct GbPpu<GFX: GfxDevice>{
     sprite_fetcher:SpriteFetcher,
     stat_triggered:bool,
     trigger_stat_interrupt:bool,
+    is_cgb_mode: bool,
 }
 
 impl<GFX:GfxDevice> GbPpu<GFX>{
@@ -100,7 +101,8 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
             sprite_fetcher:SpriteFetcher::new(),
             push_lcd_buffer:Vec::<Color>::new(),
             pixel_x_pos:0,
-            scanline_started:false
+            scanline_started:false,
+            is_cgb_mode:cgb_mode,
         }
     }
 
@@ -207,7 +209,7 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
                     if end_x > 0 && self.ly_register + 16 >= end_y && self.ly_register + 16 < end_y + sprite_height && self.sprite_fetcher.oam_entries_len < MAX_SPRITES_PER_LINE as u8{
                         let tile_number = self.oam[oam_entry_address + 2];
                         let attributes = self.oam[oam_entry_address + 3];
-                        self.sprite_fetcher.oam_entries[self.sprite_fetcher.oam_entries_len as usize] = SpriteAttributes::new_gb(end_y, end_x, tile_number, attributes);
+                        self.sprite_fetcher.oam_entries[self.sprite_fetcher.oam_entries_len as usize] = if self.is_cgb_mode{SpriteAttributes::new_gbc(end_y, end_x, tile_number, attributes)}else{SpriteAttributes::new_gb(end_y, end_x, tile_number, attributes)};
                         self.sprite_fetcher.oam_entries_len += 1;
                     }
                     
