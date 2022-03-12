@@ -1,26 +1,30 @@
-use crate::{mmu::vram::VRam, utils::{bit_masks::*, fixed_size_queue::FixedSizeQueue, vec2::Vec2}};
+use crate::{mmu::vram::VRam, utils::{bit_masks::*, fixed_size_queue::FixedSizeQueue, vec2::Vec2}, ppu::attributes::BackgroundAttributes};
 use super::{FIFO_SIZE, SPRITE_WIDTH, fetcher_state_machine::FetcherStateMachine, fetching_state::*};
 
 pub struct BackgroundFetcher{
-    pub fifo:FixedSizeQueue<u8, FIFO_SIZE>,
+    pub fifo:FixedSizeQueue<(u8, Option<BackgroundAttributes>), FIFO_SIZE>,
     pub window_line_counter:u8,
     pub has_wy_reached_ly:bool,
 
     current_x_pos:u8,
     rendering_window:bool,
     fetcher_state_machine:FetcherStateMachine,
+    cgb_attribute:Option<BackgroundAttributes>,
+    cgb_mode:bool,
 }
 
 impl BackgroundFetcher{
-    pub fn new()->Self{
+    pub fn new(cgb_mode:bool)->Self{
         let state_machine = [FetchingState::Sleep, FetchingState::FetchTileNumber, FetchingState::Sleep, FetchingState::FetchLowTile, FetchingState::Sleep, FetchingState::FetchHighTile, FetchingState::Sleep, FetchingState::Push];
         BackgroundFetcher{
             fetcher_state_machine:FetcherStateMachine::new(state_machine),
+            cgb_attribute:None,
             current_x_pos:0,
-            fifo:FixedSizeQueue::<u8, FIFO_SIZE>::new(),
+            fifo:FixedSizeQueue::<(u8, Option<BackgroundAttributes>), FIFO_SIZE>::new(),
             window_line_counter:0,
             rendering_window:false,
             has_wy_reached_ly:false,
+            cgb_mode
         }
     }
 
@@ -54,32 +58,48 @@ impl BackgroundFetcher{
 
         match self.fetcher_state_machine.current_state(){
             FetchingState::FetchTileNumber=>{
-                let tile_num = if self.rendering_window{
+                let (tile_num,bg_attrib) = if self.rendering_window{
                     let tile_map_address:u16 = if (lcd_control & BIT_6_MASK) == 0 {0x1800} else {0x1C00};
-                    vram.read_current_bank(tile_map_address + (32 * (self.window_line_counter as u16 / SPRITE_WIDTH as u16)) + ((self.current_x_pos - window_pos.x) as u16 / SPRITE_WIDTH as u16))
+                    let address = tile_map_address + (32 * (self.window_line_counter as u16 / SPRITE_WIDTH as u16)) + ((self.current_x_pos - window_pos.x) as u16 / SPRITE_WIDTH as u16);
+                    let bg_attribute = if self.cgb_mode {Some(BackgroundAttributes::new(vram.read_bank(address, 1)))} else {None};
+                    (vram.read_bank(address, 0), bg_attribute)
                 }
                 else{
                     let tile_map_address = if (lcd_control & BIT_3_MASK) == 0 {0x1800} else {0x1C00};
                     let scx_offset = ((bg_pos.x as u16 + self.current_x_pos as u16) / SPRITE_WIDTH as u16 ) & 31;
                     let scy_offset = ((bg_pos.y as u16 + ly_register as u16) & 0xFF) / SPRITE_WIDTH as u16;
 
-                    vram.read_current_bank(tile_map_address + ((32 * scy_offset) + scx_offset))
+                    let address = tile_map_address + ((32 * scy_offset) + scx_offset);
+                    let bg_attribute = if self.cgb_mode {Some(BackgroundAttributes::new(vram.read_bank(address, 1)))} else {None};
+                    (vram.read_bank(address, 0),bg_attribute)
                 };
 
                 self.fetcher_state_machine.data.reset();
+                self.cgb_attribute = bg_attrib;
                 self.fetcher_state_machine.data.tile_data = Some(tile_num);
             }
             FetchingState::FetchLowTile=>{
                 let tile_num = self.fetcher_state_machine.data.tile_data.expect("State machine is corrupted, No Tile data on FetchLowTIle");
                 let address = self.get_tila_data_address(lcd_control, bg_pos, ly_register, tile_num);
-                let low_data = vram.read_current_bank(address);
 
+                let bank = match &self.cgb_attribute{
+                    Option::Some(value)=>value.attribute.bank as u8,
+                    Option::None=>0
+                };
+
+                let low_data = vram.read_bank(address, bank);
                 self.fetcher_state_machine.data.low_tile_data = Some(low_data);
             }
             FetchingState::FetchHighTile=>{
                 let tile_num= self.fetcher_state_machine.data.tile_data.expect("State machine is corrupted, No Tile data on FetchHighTIle");
                 let address = self.get_tila_data_address(lcd_control, bg_pos, ly_register, tile_num);
-                let high_data = vram.read_current_bank(address + 1);
+                
+                let bank = match &self.cgb_attribute{
+                    Option::Some(value)=>value.attribute.bank as u8,
+                    Option::None=>0
+                };
+
+                let high_data = vram.read_bank(address + 1, bank);
 
                 self.fetcher_state_machine.data.high_tile_data = Some(high_data);
             }
@@ -87,10 +107,11 @@ impl BackgroundFetcher{
                 let low_data = self.fetcher_state_machine.data.low_tile_data.expect("State machine is corrupted, No Low data on Push");
                 let high_data = self.fetcher_state_machine.data.high_tile_data.expect("State machine is corrupted, No High data on Push");
                 if self.fifo.len() == 0{
-                    if lcd_control & BIT_0_MASK == 0{
+                    // bit 0 of lcdc behavior depends on the machine mode
+                    if lcd_control & BIT_0_MASK == 0 && !self.cgb_mode{
                         for _ in 0..SPRITE_WIDTH{
                             //When the baclkground is off pushes 0
-                            self.fifo.push(0);
+                            self.fifo.push((0, None));
                             self.current_x_pos += 1;
                         }
                     }
@@ -99,7 +120,7 @@ impl BackgroundFetcher{
                             let mask = 1 << i;
                             let mut pixel = (low_data & mask) >> i;
                             pixel |= ((high_data & mask) >> i) << 1;
-                            self.fifo.push(pixel);
+                            self.fifo.push((pixel, self.cgb_attribute));
                             self.current_x_pos += 1;
                         }
                     }

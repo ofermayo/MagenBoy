@@ -1,4 +1,4 @@
-use crate::{mmu::vram::VRam, ppu::sprite_attribute::SpriteAttribute, utils::{self, bit_masks::{BIT_0_MASK, BIT_2_MASK}, fixed_size_queue::FixedSizeQueue}};
+use crate::{mmu::vram::VRam, ppu::attributes::SpriteAttributes, utils::{self, bit_masks::{BIT_0_MASK, BIT_2_MASK}, fixed_size_queue::FixedSizeQueue}};
 use super::{FIFO_SIZE, SPRITE_WIDTH, fetcher_state_machine::FetcherStateMachine, fetching_state::*};
 
 pub const NORMAL_SPRITE_HIGHT:u8 = 8;
@@ -7,7 +7,7 @@ pub const MAX_SPRITES_PER_LINE:usize = 10;
 
 pub struct SpriteFetcher{
     pub fifo:FixedSizeQueue<(u8, u8), FIFO_SIZE>,
-    pub oam_entries:[SpriteAttribute; 10],
+    pub oam_entries:[SpriteAttributes; 10],
     pub oam_entries_len:u8,
     pub rendering:bool,
 
@@ -17,7 +17,7 @@ pub struct SpriteFetcher{
 
 impl SpriteFetcher{
     pub fn new()->Self{
-        let oam_entries:[SpriteAttribute; MAX_SPRITES_PER_LINE] = utils::create_array(|| SpriteAttribute::new(0,0,0,0));
+        let oam_entries:[SpriteAttributes; MAX_SPRITES_PER_LINE] = utils::create_array(|| SpriteAttributes::new_gb(0,0,0,0));
         let state_machine:[FetchingState;8] = [FetchingState::FetchTileNumber, FetchingState::FetchTileNumber, FetchingState::Sleep, FetchingState::FetchLowTile, FetchingState::Sleep, FetchingState::FetchHighTile, FetchingState::Sleep, FetchingState::Push];
         
         SpriteFetcher{
@@ -68,7 +68,7 @@ impl SpriteFetcher{
                 let start_x = self.fifo.len();
                 let skip_x = 8 - (oam_attribute.x - current_x_pos) as usize;
 
-                if oam_attribute.flip_x{
+                if oam_attribute.attribute.flip_x{
                     for i in (0 + skip_x)..SPRITE_WIDTH as usize{
                         let pixel = Self::get_decoded_pixel(i, low_data, high_data);
                         if i + skip_x >= start_x {
@@ -119,8 +119,8 @@ impl SpriteFetcher{
     }
 
     // Receiving the tile_num since in case of extended sprite this could change (the first bit is reset)
-    fn get_current_tile_data_address(ly_register:u8, sprite_attrib:&SpriteAttribute, sprite_size:u8, tile_num:u8)->u16{
-        return if sprite_attrib.flip_y{
+    fn get_current_tile_data_address(ly_register:u8, sprite_attrib:&SpriteAttributes, sprite_size:u8, tile_num:u8)->u16{
+        return if sprite_attrib.attribute.flip_y{
             // Since Im flipping but dont know for what rect (8X8 or 8X16) I need sub this from the size (minus 1 casue im starting to count from 0 in the screen lines).
             tile_num as u16 * 16 + (2 * (sprite_size - 1 - (16 - (sprite_attrib.y - ly_register)))) as u16
         }

@@ -123,7 +123,7 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
 impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
     pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>, boot_rom:Bootrom, apu:GbApu<D>, gfx_device:G, joypad_proider:J)->Self{
         GbMmu{
-            io_bus:IoBus::new(apu, gfx_device, joypad_proider),
+            io_bus:IoBus::new(apu, gfx_device, joypad_proider, mbc.is_cgb_mode()),
             external_memory_bus: ExternalMemoryBus::new(mbc, boot_rom),
             oucupied_access_bus:None,
             hram:[0;HRAM_SIZE],

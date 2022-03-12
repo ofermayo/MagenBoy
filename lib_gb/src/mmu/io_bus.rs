@@ -95,6 +95,11 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> Memory for IoBus<AD, GFX,
             KEY1_REGISTER_INDEX=>self.speed_switch_register | 0b0111_1110,
             // VRAM DMA
             HDMA5_REGISTER_INDEX=>self.vram_dma_controller.get_mode_length(),
+            //Color ram
+            BGPI_REGISTER_INDEX=>get_bgpi(&self.ppu),
+            BGPD_REGISTER_INDEX=>get_bgpd(&self.ppu),
+            OBPI_REGISTER_INDEX=>get_obpi(&self.ppu),
+            OBPD_REGISTER_INDEX=>get_obpd(&self.ppu),
             //Joypad
             JOYP_REGISTER_INDEX => self.joypad_handler.register,
             _=>0xFF
@@ -160,6 +165,12 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> Memory for IoBus<AD, GFX,
             HDMA3_REGISTER_INDEX=>self.vram_dma_controller.set_dest_high(value),
             HDMA4_REGISTER_INDEX=>self.vram_dma_controller.set_dest_low(value),
             HDMA5_REGISTER_INDEX=>self.vram_dma_controller.set_mode_length(value),
+            // COLOR Ram
+            BGPI_REGISTER_INDEX=>set_bgpi(&mut self.ppu, value),
+            BGPD_REGISTER_INDEX=>set_bgpd(&mut self.ppu, value),
+            OBPI_REGISTER_INDEX=>set_obpi(&mut self.ppu, value),
+            OBPD_REGISTER_INDEX=>set_obpd(&mut self.ppu, value),
+
             JOYP_REGISTER_INDEX => self.joypad_handler.set_register(value),
             _=>{}
         }
@@ -167,11 +178,11 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> Memory for IoBus<AD, GFX,
 }
 
 impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> IoBus<AD, GFX, JP>{
-    pub fn new(apu:GbApu<AD>, gfx_device:GFX, joypad_provider:JP)->Self{
+    pub fn new(apu:GbApu<AD>, gfx_device:GFX, joypad_provider:JP, cgb_mode:bool)->Self{
         Self{
             apu,
             timer:GbTimer::default(),
-            ppu:GbPpu::new(gfx_device),
+            ppu:GbPpu::new(gfx_device, cgb_mode),
             oam_dma_controller: OamDmaController::new(),
             vram_dma_controller: VramDmaController::new(),
             interrupt_handler: InterruptsHandler::default(),

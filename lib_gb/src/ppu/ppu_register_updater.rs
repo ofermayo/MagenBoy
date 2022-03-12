@@ -83,3 +83,45 @@ pub fn get_stat<GFX:GfxDevice>(ppu:&GbPpu<GFX>)->u8{
 pub fn set_lyc<GFX:GfxDevice>(ppu:&mut GbPpu<GFX>, value:u8){
     ppu.lyc_register = value;
 }
+
+pub fn set_bgpi<GFX:GfxDevice>(ppu:&mut GbPpu<GFX>, value:u8){
+    ppu.bg_color_pallete_index = value;
+}
+
+pub fn get_bgpi<GFX:GfxDevice>(ppu:&GbPpu<GFX>)->u8{
+    ppu.bg_color_pallete_index
+}
+
+pub fn set_bgpd<GFX:GfxDevice>(ppu:&mut GbPpu<GFX>, value:u8){
+    ppu.bg_color_ram[(ppu.bg_color_pallete_index & 0b11_1111) as usize] = value;
+    // if bit 7 is set inderement the dest adderess after write
+    if (ppu.bg_color_pallete_index & BIT_7_MASK) != 0 {
+        // Anding with all the bits except bit 6 to achieve wrap behaviour in case of overflow
+        ppu.bg_color_pallete_index = (ppu.bg_color_pallete_index + 1) & 0b1011_1111;
+    }
+}
+
+pub fn get_bgpd<GFX:GfxDevice>(ppu:&GbPpu<GFX>)->u8{
+    ppu.bg_color_ram[(ppu.bg_color_pallete_index & 0b11_1111) as usize]
+}
+
+
+pub fn set_obpi<GFX:GfxDevice>(ppu:&mut GbPpu<GFX>, value:u8){
+    ppu.obj_color_pallete_index = value;
+}
+
+pub fn get_obpi<GFX:GfxDevice>(ppu:&GbPpu<GFX>)->u8{
+    ppu.obj_color_pallete_index
+}
+
+pub fn set_obpd<GFX:GfxDevice>(ppu:&mut GbPpu<GFX>, value:u8){
+    ppu.obj_color_ram[(ppu.obj_color_pallete_index & 0b11_1111) as usize] = value;
+    // if bit 7 is set inderement the dest adderess after write
+    if (ppu.obj_color_pallete_index & BIT_7_MASK) != 0 {
+        ppu.obj_color_pallete_index = (ppu.obj_color_pallete_index + 1) & 0b1011_1111;
+    }
+}
+
+pub fn get_obpd<GFX:GfxDevice>(ppu:&GbPpu<GFX>)->u8{
+    ppu.obj_color_ram[(ppu.obj_color_pallete_index & 0b11_1111) as usize]
+}

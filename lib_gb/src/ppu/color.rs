@@ -39,3 +39,14 @@ impl From<Color> for u32{
         ((color.r as u32) << 16) | ((color.g as u32) << 8) | (color.b as u32)
     }
 }
+
+impl From<u16> for Color{
+    // color is RGB555 u16 value
+    fn from(color:u16)->Color{
+        Color{
+            r:(color as u8 & 0b1_1111)<<3, 
+            g: ((color >> 5) as u8 & 0b1_1111)<<3, 
+            b: ((color >> 10) as u8 & 0b1_1111)<<3
+        }
+    }
+}
