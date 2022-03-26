@@ -55,18 +55,19 @@ pub struct SpriteAttributes{
     pub tile_number:u8,
     pub palette_number:Pallete,
     pub attribute:Attributes,
+    pub oam_index:u8
 }
 
 impl SpriteAttributes{
     pub fn new_gb(y:u8, x:u8, tile_number:u8, attributes:u8)->Self{
-        Self::new(y,x,tile_number, Attributes::new_gb(attributes), Pallete::GbPallete((attributes & BIT_4_MASK) != 0))
+        Self::new(y,x,tile_number, Attributes::new_gb(attributes), Pallete::GbPallete((attributes & BIT_4_MASK) != 0), 0)
     }
 
-    pub fn new_gbc(y:u8, x:u8, tile_number:u8, attributes:u8)->Self{
-        Self::new(y,x,tile_number, Attributes::new_gbc(attributes),Pallete::GbcPallete(attributes & 0b111),)
+    pub fn new_gbc(y:u8, x:u8, tile_number:u8, attributes:u8, oam_index:u8)->Self{
+        Self::new(y,x,tile_number, Attributes::new_gbc(attributes),Pallete::GbcPallete(attributes & 0b111),oam_index)
     }
 
-    fn new(y:u8, x:u8, tile_number:u8, attribute:Attributes, palette_number:Pallete)->Self{
-        SpriteAttributes{y, x, tile_number, attribute, palette_number}
+    fn new(y:u8, x:u8, tile_number:u8, attribute:Attributes, palette_number:Pallete, oam_index:u8)->Self{
+        SpriteAttributes{y, x, tile_number, attribute, palette_number, oam_index}
     }
 }

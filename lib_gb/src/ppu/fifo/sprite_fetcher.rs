@@ -13,10 +13,11 @@ pub struct SpriteFetcher{
 
     fetcher_state_machine:FetcherStateMachine,
     current_oam_entry:u8,
+    cgb_mode:bool
 }
 
 impl SpriteFetcher{
-    pub fn new()->Self{
+    pub fn new(cgb_mode:bool)->Self{
         let oam_entries:[SpriteAttributes; MAX_SPRITES_PER_LINE] = utils::create_array(|| SpriteAttributes::new_gb(0,0,0,0));
         let state_machine:[FetchingState;8] = [FetchingState::FetchTileNumber, FetchingState::FetchTileNumber, FetchingState::Sleep, FetchingState::FetchLowTile, FetchingState::Sleep, FetchingState::FetchHighTile, FetchingState::Sleep, FetchingState::Push];
         
@@ -27,6 +28,7 @@ impl SpriteFetcher{
             oam_entries,
             fifo:FixedSizeQueue::<(u8,u8), 8>::new(),
             rendering:false,
+            cgb_mode
         }
     }
 
@@ -70,6 +72,9 @@ impl SpriteFetcher{
 
                 if oam_attribute.attribute.flip_x{
                     for i in (0 + skip_x)..SPRITE_WIDTH as usize{
+                        if self.is_sprite_lose_priority(current_x_pos, i, oam_attribute) {
+                            break;
+                        }
                         let pixel = Self::get_decoded_pixel(i, low_data, high_data);
                         if i + skip_x >= start_x {
                             self.fifo.push((pixel, self.current_oam_entry));
@@ -81,7 +86,11 @@ impl SpriteFetcher{
                 }
                 else{
                     let fifo_max_index = FIFO_SIZE as usize - 1;
-                    for i in (0..(SPRITE_WIDTH as usize - skip_x)).rev(){
+                    let number_of_pixels_to_push = SPRITE_WIDTH as usize - skip_x;
+                    for i in (0..number_of_pixels_to_push).rev(){
+                        if self.is_sprite_lose_priority(current_x_pos, number_of_pixels_to_push - i - 1, oam_attribute) {
+                            break;
+                        }
                         let pixel = Self::get_decoded_pixel(i, low_data, high_data);
                         if fifo_max_index - skip_x - i >= start_x {
                             self.fifo.push((pixel, self.current_oam_entry));
@@ -97,6 +106,16 @@ impl SpriteFetcher{
             }
             FetchingState::Sleep=>self.fetcher_state_machine.advance()
         }
+    }
+
+    fn is_sprite_lose_priority(&self, current_x_pos: u8, i: usize, oam_attribute: &SpriteAttributes)->bool {
+        return if self.cgb_mode && self.oam_entries_len > self.current_oam_entry + 1 {
+            let next_oam_attributes = &self.oam_entries[self.current_oam_entry as usize + 1];
+            next_oam_attributes.x - SPRITE_WIDTH == current_x_pos + i as u8 && next_oam_attributes.oam_index < oam_attribute.oam_index
+        }
+        else{
+            false
+        };
     }
 
     //This is a function on order to abort if rendering

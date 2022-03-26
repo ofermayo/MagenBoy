@@ -98,7 +98,7 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
             stat_triggered:false,
             trigger_stat_interrupt:false,
             bg_fetcher:BackgroundFetcher::new(cgb_mode),
-            sprite_fetcher:SpriteFetcher::new(),
+            sprite_fetcher:SpriteFetcher::new(cgb_mode),
             push_lcd_buffer:Vec::<Color>::new(),
             pixel_x_pos:0,
             scanline_started:false,
@@ -209,15 +209,20 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
                     if end_x > 0 && self.ly_register + 16 >= end_y && self.ly_register + 16 < end_y + sprite_height && self.sprite_fetcher.oam_entries_len < MAX_SPRITES_PER_LINE as u8{
                         let tile_number = self.oam[oam_entry_address + 2];
                         let attributes = self.oam[oam_entry_address + 3];
-                        self.sprite_fetcher.oam_entries[self.sprite_fetcher.oam_entries_len as usize] = if self.is_cgb_mode{SpriteAttributes::new_gbc(end_y, end_x, tile_number, attributes)}else{SpriteAttributes::new_gb(end_y, end_x, tile_number, attributes)};
+                        self.sprite_fetcher.oam_entries[self.sprite_fetcher.oam_entries_len as usize] = if self.is_cgb_mode{SpriteAttributes::new_gbc(end_y, end_x, tile_number, attributes, oam_index as u8)}else{SpriteAttributes::new_gb(end_y, end_x, tile_number, attributes)};
                         self.sprite_fetcher.oam_entries_len += 1;
                     }
                     
                     self.t_cycles_passed += 2; //half a m_cycle
                     
                     if self.t_cycles_passed == OAM_SEARCH_T_CYCLES_LENGTH{
+                        if self.ly_register >= 0x38 - 16{
+                            println!("test");
+                        }
+                        
                         let slice = self.sprite_fetcher.oam_entries[0..self.sprite_fetcher.oam_entries_len as usize].as_mut();
                         slice.sort_by(|s1:&SpriteAttributes, s2:&SpriteAttributes| s1.x.cmp(&s2.x));
+                        
                         self.state = PpuState::PixelTransfer;
                         self.scanline_started = false;
                     }
@@ -333,47 +338,58 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
 
             let (bg_pixel_color_num, bg_cgb_attribute) = self.bg_fetcher.fifo.remove();
             let bg_pixel = self.bg_color_mapping[bg_pixel_color_num as usize];
-            let pixel = if !(self.sprite_fetcher.fifo.len() == 0){
-                let (pixel, oam_attribute_index) = self.sprite_fetcher.fifo.remove();
-                let pixel_oam_attribute = &self.sprite_fetcher.oam_entries[oam_attribute_index as usize];
+            let pixel = self.get_correct_pixel(bg_cgb_attribute, bg_pixel, bg_pixel_color_num);
 
-                if pixel == 0 || (pixel_oam_attribute.attribute.priority && bg_pixel_color_num != 0){
-                    match bg_cgb_attribute{
-                        Option::None=>bg_pixel,
-                        Option::Some(attribute)=>{
-                            Self::get_color_from_color_ram(&self.bg_color_ram, attribute.cgb_pallete_number, bg_pixel_color_num)       
-                        }
-                    }
+            self.push_lcd_buffer.push(pixel);
+            self.pixel_x_pos += 1;
+        }
+    }
+
+    fn get_correct_pixel(&mut self, bg_cgb_attribute: Option<super::attributes::BackgroundAttributes>, bg_pixel: Color, bg_pixel_color_num: u8) -> Color {
+        if self.sprite_fetcher.fifo.len() == 0{
+            return match bg_cgb_attribute{
+                Option::None=>bg_pixel,
+                Option::Some(attribute)=>{
+                    Self::get_color_from_color_ram(&self.bg_color_ram, attribute.cgb_pallete_number, bg_pixel_color_num)       
                 }
-                else{
-                    let sprite_pixel = match pixel_oam_attribute.palette_number{
-                        Pallete::GbPallete(pallete)=>{
-                            if pallete{
-                                self.obj_color_mapping1[pixel as usize]
-                            }
-                            else{
-                                self.obj_color_mapping0[pixel as usize]
-                            }
-                        }
-                        Pallete::GbcPallete(pallete)=>{
-                            Some(Self::get_color_from_color_ram(&self.obj_color_ram, pallete, pixel))
-                        }
-                    };
+            };
+        }
+        else{
+            let (oam_pixel, oam_attribute_index) = self.sprite_fetcher.fifo.remove();
 
-                    sprite_pixel.expect("Corruption in the object color pallete")
+            if let Some(bg_attribute) = bg_cgb_attribute {
+                if bg_attribute.attribute.priority && self.lcd_control & BIT_0_MASK != 0{
+                    return Self::get_color_from_color_ram(&self.bg_color_ram, bg_attribute.cgb_pallete_number, bg_pixel_color_num);
                 }
             }
-            else{
-                match bg_cgb_attribute{
+
+            let pixel_oam_attribute = &self.sprite_fetcher.oam_entries[oam_attribute_index as usize];
+
+            if oam_pixel == 0 || (pixel_oam_attribute.attribute.priority && bg_pixel_color_num != 0){
+                return match bg_cgb_attribute{
                     Option::None=>bg_pixel,
                     Option::Some(attribute)=>{
                         Self::get_color_from_color_ram(&self.bg_color_ram, attribute.cgb_pallete_number, bg_pixel_color_num)       
                     }
-                }
-            };
+                };
+            }
+            else{
+                let sprite_pixel = match pixel_oam_attribute.palette_number{
+                    Pallete::GbPallete(pallete)=>{
+                        if pallete{
+                            self.obj_color_mapping1[oam_pixel as usize]
+                        }
+                        else{
+                            self.obj_color_mapping0[oam_pixel as usize]
+                        }
+                    }
+                    Pallete::GbcPallete(pallete)=>{
+                        Some(Self::get_color_from_color_ram(&self.obj_color_ram, pallete, oam_pixel))
+                    }
+                };
 
-            self.push_lcd_buffer.push(pixel);
-            self.pixel_x_pos += 1;
+                return sprite_pixel.expect("Corruption in the object color pallete");
+            }
         }
     }
 
