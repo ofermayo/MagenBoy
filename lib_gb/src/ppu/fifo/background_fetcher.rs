@@ -1,16 +1,18 @@
 use crate::{mmu::vram::VRam, utils::{bit_masks::*, fixed_size_queue::FixedSizeQueue, vec2::Vec2}, ppu::attributes::BackgroundAttributes};
 use super::{FIFO_SIZE, SPRITE_WIDTH, fetcher_state_machine::FetcherStateMachine, fetching_state::*};
 
+const EMPTY_FIFO_BUFFER:[(u8,BackgroundAttributes);FIFO_SIZE] = [(0,BackgroundAttributes::new(0));FIFO_SIZE];
+
 pub struct BackgroundFetcher{
-    pub fifo:FixedSizeQueue<(u8, Option<BackgroundAttributes>), FIFO_SIZE>,
+    pub fifo:FixedSizeQueue<(u8, BackgroundAttributes), FIFO_SIZE>,
     pub window_line_counter:u8,
     pub has_wy_reached_ly:bool,
 
     current_x_pos:u8,
     rendering_window:bool,
     fetcher_state_machine:FetcherStateMachine,
-    cgb_attribute:Option<BackgroundAttributes>,
     cgb_mode:bool,
+    cgb_attributes:BackgroundAttributes
 }
 
 impl BackgroundFetcher{
@@ -18,13 +20,13 @@ impl BackgroundFetcher{
         let state_machine = [FetchingState::Sleep, FetchingState::FetchTileNumber, FetchingState::Sleep, FetchingState::FetchLowTile, FetchingState::Sleep, FetchingState::FetchHighTile, FetchingState::Sleep, FetchingState::Push];
         BackgroundFetcher{
             fetcher_state_machine:FetcherStateMachine::new(state_machine),
-            cgb_attribute:None,
             current_x_pos:0,
-            fifo:FixedSizeQueue::<(u8, Option<BackgroundAttributes>), FIFO_SIZE>::new(),
+            fifo:FixedSizeQueue::<(u8, BackgroundAttributes), FIFO_SIZE>::new(),
             window_line_counter:0,
             rendering_window:false,
             has_wy_reached_ly:false,
-            cgb_mode
+            cgb_mode,
+            cgb_attributes:BackgroundAttributes::new(0)
         }
     }
 
@@ -58,122 +60,83 @@ impl BackgroundFetcher{
 
         match self.fetcher_state_machine.current_state(){
             FetchingState::FetchTileNumber=>{
-                let (tile_num,bg_attrib) = if self.rendering_window{
+                let address = if self.rendering_window{
                     let tile_map_address:u16 = if (lcd_control & BIT_6_MASK) == 0 {0x1800} else {0x1C00};
-                    let address = tile_map_address + (32 * (self.window_line_counter as u16 / SPRITE_WIDTH as u16)) + ((self.current_x_pos - window_pos.x) as u16 / SPRITE_WIDTH as u16);
-                    let bg_attribute = if self.cgb_mode {Some(BackgroundAttributes::new(vram.read_bank(address, 1)))} else {None};
-                    (vram.read_bank(address, 0), bg_attribute)
+                    tile_map_address + (32 * (self.window_line_counter as u16 / SPRITE_WIDTH as u16)) + ((self.current_x_pos - window_pos.x) as u16 / SPRITE_WIDTH as u16)
                 }
                 else{
                     let tile_map_address = if (lcd_control & BIT_3_MASK) == 0 {0x1800} else {0x1C00};
                     let scx_offset = ((bg_pos.x as u16 + self.current_x_pos as u16) / SPRITE_WIDTH as u16 ) & 31;
                     let scy_offset = ((bg_pos.y as u16 + ly_register as u16) & 0xFF) / SPRITE_WIDTH as u16;
 
-                    let address = tile_map_address + ((32 * scy_offset) + scx_offset);
-                    let bg_attribute = if self.cgb_mode {Some(BackgroundAttributes::new(vram.read_bank(address, 1)))} else {None};
-                    (vram.read_bank(address, 0),bg_attribute)
+                    tile_map_address + ((32 * scy_offset) + scx_offset)
                 };
+                if self.cgb_mode {
+                    self.cgb_attributes = BackgroundAttributes::new(vram.read_bank(address, 1));
+                }
+                let tile_num = vram.read_bank(address, 0);
 
                 self.fetcher_state_machine.data.reset();
-                self.cgb_attribute = bg_attrib;
-                self.fetcher_state_machine.data.tile_data = Some(tile_num);
+                self.fetcher_state_machine.data.tile_data = tile_num;
             }
             FetchingState::FetchLowTile=>{
-                let tile_num = self.fetcher_state_machine.data.tile_data.expect("State machine is corrupted, No Tile data on FetchLowTIle");
+                let tile_num = self.fetcher_state_machine.data.tile_data;
                 let address = self.get_tila_data_address(lcd_control, bg_pos, ly_register, tile_num);
-
-                let bank = match &self.cgb_attribute{
-                    Option::Some(value)=>value.attribute.bank as u8,
-                    Option::None=>0
-                };
-
+                let bank = self.cgb_attributes.attribute.bank as u8;
                 let low_data = vram.read_bank(address, bank);
-                self.fetcher_state_machine.data.low_tile_data = Some(low_data);
+
+                self.fetcher_state_machine.data.low_tile_data = low_data;
             }
             FetchingState::FetchHighTile=>{
-                let tile_num= self.fetcher_state_machine.data.tile_data.expect("State machine is corrupted, No Tile data on FetchHighTIle");
+                let tile_num= self.fetcher_state_machine.data.tile_data;
                 let address = self.get_tila_data_address(lcd_control, bg_pos, ly_register, tile_num);
-                
-                let bank = match &self.cgb_attribute{
-                    Option::Some(value)=>value.attribute.bank as u8,
-                    Option::None=>0
-                };
-
+                let bank = self.cgb_attributes.attribute.bank as u8;
                 let high_data = vram.read_bank(address + 1, bank);
 
-                self.fetcher_state_machine.data.high_tile_data = Some(high_data);
+                self.fetcher_state_machine.data.high_tile_data = high_data;
             }
-            FetchingState::Push=>{
-                let low_data = self.fetcher_state_machine.data.low_tile_data.expect("State machine is corrupted, No Low data on Push");
-                let high_data = self.fetcher_state_machine.data.high_tile_data.expect("State machine is corrupted, No High data on Push");
-                if self.fifo.len() == 0{
-                    // bit 0 of lcdc behavior depends on the machine mode
-                    if lcd_control & BIT_0_MASK == 0 && !self.cgb_mode{
-                        for _ in 0..SPRITE_WIDTH{
-                            //When the baclkground is off pushes 0
-                            self.fifo.push((0, None));
-                            self.current_x_pos += 1;
-                        }
+            FetchingState::Push if self.fifo.len() == 0 => {
+                if lcd_control & BIT_0_MASK == 0 && !self.cgb_mode{
+                    self.fifo.fill(&EMPTY_FIFO_BUFFER);
+                }
+                else{
+                    let low_data = self.fetcher_state_machine.data.low_tile_data;
+                    let high_data = self.fetcher_state_machine.data.high_tile_data;
+                    let mut buffer:[(u8,BackgroundAttributes);SPRITE_WIDTH as usize] = [(0,BackgroundAttributes::new(0));SPRITE_WIDTH as usize];
+                    let (start, end, step) = if self.cgb_mode && self.cgb_attributes.attribute.flip_x{
+                        (buffer.len() as i32 - 1, -1, -1)
                     }
                     else{
-                        if self.cgb_mode {
-                            let attributes = self.cgb_attribute.expect("State machine is corrupted, No cgb attributes");
-                            if attributes.attribute.flip_x{
-                                for i in 0..SPRITE_WIDTH{
-                                    let mask = 1 << i;
-                                    let mut pixel = (low_data & mask) >> i;
-                                    pixel |= ((high_data & mask) >> i) << 1;
-                                    self.fifo.push((pixel, self.cgb_attribute));
-                                    self.current_x_pos += 1;
-                                }
-                            }
-                            else{
-                                for i in (0..SPRITE_WIDTH).rev(){
-                                    let mask = 1 << i;
-                                    let mut pixel = (low_data & mask) >> i;
-                                    pixel |= ((high_data & mask) >> i) << 1;
-                                    self.fifo.push((pixel, self.cgb_attribute));
-                                    self.current_x_pos += 1;
-                                }
-                            }
-                        }
-                        else{
-                            for i in (0..SPRITE_WIDTH).rev(){
-                                let mask = 1 << i;
-                                let mut pixel = (low_data & mask) >> i;
-                                pixel |= ((high_data & mask) >> i) << 1;
-                                self.fifo.push((pixel, self.cgb_attribute));
-                                self.current_x_pos += 1;
-                            }
-                        }
-                    }
-                }
-            }
-            FetchingState::Sleep=>{}
-        }
+                        (0, buffer.len() as i32, 1)
+                    };
 
+                    let mut i = start;
+                    while i != end{
+                        let mask = 1 << i;
+                        let mut pixel = (low_data & mask) >> i;
+                        pixel |= ((high_data & mask) >> i) << 1;
+                        buffer[(buffer.len() as i32 - 1 - i) as usize] = (pixel, self.cgb_attributes);
+                        i += step;
+                    }
+                    self.fifo.fill(&buffer);
+                }
+                self.current_x_pos += SPRITE_WIDTH;
+            }
+            _ => {}
+        }
         self.fetcher_state_machine.advance();
     }
 
     fn get_tila_data_address(&self, lcd_control:u8, bg_pos:&Vec2<u8>, ly_register:u8, tile_num:u8)->u16{
         let current_tile_base_data_address = if (lcd_control & BIT_4_MASK) == 0 && (tile_num & BIT_7_MASK) == 0 {0x1000} else {0};
         let current_tile_data_address = current_tile_base_data_address + (tile_num  as u16 * 16);
-        return if self.rendering_window{
-            if self.cgb_mode{
-                let attributes = self.cgb_attribute.expect("Error no cgb attribute");
-                if attributes.attribute.flip_y{
-                    
-                    return current_tile_data_address + (2 * (7 - (self.window_line_counter % SPRITE_WIDTH))) as u16;
-                }
-            }
+        return if self.rendering_window && self.cgb_mode && self.cgb_attributes.attribute.flip_y{
+            current_tile_data_address + (2 * (7 - (self.window_line_counter % SPRITE_WIDTH))) as u16
+        } else if self.rendering_window{
             current_tile_data_address + (2 * (self.window_line_counter % SPRITE_WIDTH)) as u16
+        } else if self.cgb_mode && self.cgb_attributes.attribute.flip_y{
+            current_tile_data_address + (2 * (7 - (bg_pos.y as u16 + ly_register as u16) % SPRITE_WIDTH as u16))
         } else{
-            if self.cgb_mode{
-                let attributes = self.cgb_attribute.expect("Error no cgb attribute");
-                if attributes.attribute.flip_y{
-                    return current_tile_data_address + (2 * (7 - ((bg_pos.y as u16 + ly_register as u16 ) % SPRITE_WIDTH as u16)));
-                }
-            }
             current_tile_data_address + (2 * ((bg_pos.y as u16 + ly_register as u16) % SPRITE_WIDTH as u16))
         };
     }

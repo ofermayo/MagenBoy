@@ -24,7 +24,7 @@ impl Attributes{
         }
     }
     
-    pub fn new_gbc(attribute:u8)->Self{
+    pub const fn new_gbc(attribute:u8)->Self{
         Self{
             priority: (attribute & BIT_7_MASK) != 0,
             flip_y: (attribute & BIT_6_MASK) != 0,
@@ -41,7 +41,7 @@ pub struct BackgroundAttributes{
 }
 
 impl BackgroundAttributes{
-    pub fn new(attribute:u8)->Self{
+    pub const fn new(attribute:u8)->Self{
         Self{
             attribute: Attributes::new_gbc(attribute),
             cgb_pallete_number: attribute & 0b111
