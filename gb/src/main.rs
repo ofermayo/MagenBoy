@@ -262,7 +262,7 @@ fn emulation_thread_main(args: Vec<String>, program_name: String, spsc_gfx_devic
             };
 
         
-            GameBoy::new_with_bootrom(&mut mbc, joypad_provider,audio_devices, spsc_gfx_device, bootrom)
+            GameBoy::with_bootrom(&mut mbc, joypad_provider,audio_devices, spsc_gfx_device, bootrom)
         }
         Result::Err(_)=>{
             info!("could not find bootrom... booting directly to rom");

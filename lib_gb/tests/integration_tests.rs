@@ -42,13 +42,17 @@ impl JoypadProvider for StubJoypadProvider{
 #[test]
 fn test_cpu_instrs(){
     let file_url = "https://raw.githubusercontent.com/retrio/gb-test-roms/master/cpu_instrs/cpu_instrs.gb";
-    run_integration_test_from_url(file_url, 800, 3798827046966939676);
+    // This rom is compatible with both DMG and CGB so it defualts to CGB
+    // DMG hash - 3798827046966939676
+    run_integration_test_from_url(file_url, 800, 9524850543309805204);
 }
 
 #[test]
 fn test_cpu_instrs_timing(){
     let file_url = "https://raw.githubusercontent.com/retrio/gb-test-roms/master/instr_timing/instr_timing.gb";
-    run_integration_test_from_url(file_url, 100, 469033992149587554);
+    // This rom is compatible with both DMG and CGB so it defualts to CGB
+    // DMG hash - 469033992149587554
+    run_integration_test_from_url(file_url, 100, 17743193861009342893);
 }
 
 #[test]

@@ -17,20 +17,28 @@ pub struct GameBoy<'a, JP: JoypadProvider, AD:AudioDevice, GFX:GfxDevice> {
 
 impl<'a, JP:JoypadProvider, AD:AudioDevice, GFX:GfxDevice> GameBoy<'a, JP, AD, GFX>{
 
-    pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>,joypad_provider:JP, audio_device:AD, gfx_device:GFX, boot_rom:Bootrom)->GameBoy<JP, AD, GFX>{
+    pub fn with_bootrom(mbc:&'a mut Box<dyn Mbc>,joypad_provider:JP, audio_device:AD, gfx_device:GFX, boot_rom:Bootrom)->GameBoy<JP, AD, GFX>{
         GameBoy{
             cpu:GbCpu::default(),
-            mmu:GbMmu::new_with_bootrom(mbc, boot_rom, GbApu::new(audio_device), gfx_device, joypad_provider),
+            mmu:GbMmu::with_bootrom(mbc, boot_rom, GbApu::new(audio_device), gfx_device, joypad_provider),
         }
     }
 
     pub fn new(mbc:&'a mut Box<dyn Mbc>,joypad_provider:JP, audio_device:AD, gfx_device:GFX)->GameBoy<JP, AD, GFX>{
         let mut cpu = GbCpu::default();
         //Values after the bootrom
-        *cpu.af.value() = 0x190;
-        *cpu.bc.value() = 0x13;
-        *cpu.de.value() = 0xD8;
-        *cpu.hl.value() = 0x14D;
+        if mbc.is_cgb_mode(){
+            *cpu.af.value() = 0x1180;
+            *cpu.bc.value() = 0x0;
+            *cpu.de.value() = 0xFF56;
+            *cpu.hl.value() = 0xD;
+        }
+        else{
+            *cpu.af.value() = 0x190;
+            *cpu.bc.value() = 0x13;
+            *cpu.de.value() = 0xD8;
+            *cpu.hl.value() = 0x14D;
+        }
         cpu.stack_pointer = 0xFFFE;
         cpu.program_counter = 0x100;
 
@@ -83,4 +91,3 @@ impl<'a, JP:JoypadProvider, AD:AudioDevice, GFX:GfxDevice> GameBoy<'a, JP, AD, G
         self.cpu.run_opcode(&mut self.mmu)
     }
 }
-
