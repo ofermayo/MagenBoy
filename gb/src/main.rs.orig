@@ -1,7 +1,9 @@
 mod mbc_handler;
 mod mpmc_gfx_device;
+<<<<<<< HEAD
 mod joypad_menu;
 mod emulation_menu;
+use lib_gb::{GB_FREQUENCY, apu::audio_device::*, keypad::button::Button, machine::gameboy::GameBoy, mmu::{GB_BOOT_ROM_SIZE, GBC_BOOT_ROM_SIZE}, ppu::{gb_ppu::{BUFFERS_NUMBER, SCREEN_HEIGHT, SCREEN_WIDTH}, gfx_device::GfxDevice}};
 
 #[cfg(feature = "rpi")]
 mod rpi_gpio;
@@ -50,6 +52,13 @@ use emulation_menu::MagenBoyState;
 use joypad_menu::{JoypadMenu, MenuOption, MenuRenderer};
 use lib_gb::{keypad::button::Button, apu::audio_device::*, machine::gameboy::GameBoy, mmu::gb_mmu::BOOT_ROM_SIZE, ppu::{gb_ppu::{BUFFERS_NUMBER, SCREEN_HEIGHT, SCREEN_WIDTH}, gfx_device::{GfxDevice, Pixel}}};
 use std::{fs, env, result::Result, vec::Vec, path::PathBuf};
+=======
+mod audio;
+
+use crate::{audio::{ChosenResampler, multi_device_audio::*, ResampledAudioDevice}, mbc_handler::*, mpmc_gfx_device::MpmcGfxDevice, sdl_joypad_provider::*};
+use lib_gb::{GB_FREQUENCY, apu::audio_device::*, keypad::button::Button, machine::gameboy::GameBoy, mmu::{GB_BOOT_ROM_SIZE, GBC_BOOT_ROM_SIZE, external_memory_bus::Bootrom}, ppu::{gb_ppu::{BUFFERS_NUMBER, SCREEN_HEIGHT, SCREEN_WIDTH}, gfx_device::GfxDevice}};
+use std::{fs, env, result::Result, vec::Vec};
+>>>>>>> ebf1e1f (Add support for both machine types bootroms)
 use log::info;
 cfg_if::cfg_if! {if #[cfg(feature = "apu")]{
     use lib_gb::GB_FREQUENCY;
@@ -314,7 +323,7 @@ fn emulation_thread_main(args: Vec<String>, program_name: String, spsc_gfx_devic
             };
 
         
-            GameBoy::with_bootrom(&mut mbc, joypad_provider,audio_devices, spsc_gfx_device, bootrom)
+            GameBoy::new_with_bootrom(&mut mbc, joypad_provider,audio_devices, spsc_gfx_device, bootrom)
         }
         Result::Err(_)=>{
             info!("could not find bootrom... booting directly to rom");

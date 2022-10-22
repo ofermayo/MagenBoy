@@ -110,7 +110,7 @@ pub fn ppu_gb_ppu(c:&mut Criterion){
         fn swap_buffer(&mut self, _:&[lib_gb::ppu::gfx_device::Pixel; lib_gb::ppu::gb_ppu::SCREEN_HEIGHT * lib_gb::ppu::gb_ppu::SCREEN_WIDTH]) {}
     }
 
-    let mut ppu = GbPpu::new(StubGfxDevice{});
+    let mut ppu = GbPpu::new(StubGfxDevice{}, false);
     ppu.lcd_control = 0xFF;
     ppu.stat_register = 0b111_1000;
     for i in 0..4{

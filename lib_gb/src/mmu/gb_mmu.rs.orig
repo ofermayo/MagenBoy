@@ -73,7 +73,7 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> Memory for GbMmu<'a, D, G
                         self.io_bus.ppu.vram.write_current_bank(address-0x8000, value);
                     }
                     else{
-                        log::warn!("bad vram write: address - {:#X}, value - {:#X}", address, value);
+                        log::warn!("bad vram write")
                     }
                 },
                 0xFE00..=0xFE9F=>{
@@ -124,18 +124,25 @@ impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
 }
 
 impl<'a, D:AudioDevice, G:GfxDevice, J:JoypadProvider> GbMmu<'a, D, G, J>{
-    pub fn with_bootrom(mbc:&'a mut Box<dyn Mbc>, boot_rom:Bootrom, apu:GbApu<D>, gfx_device:G, joypad_proider:J)->Self{
+    pub fn new_with_bootrom(mbc:&'a mut Box<dyn Mbc>, boot_rom:Bootrom, apu:GbApu<D>, gfx_device:G, joypad_proider:J)->Self{
         GbMmu{
-            io_bus:IoBus::new(apu, gfx_device, joypad_proider, mbc.is_cgb_mode()),
+<<<<<<< HEAD
+            io_bus:IoBus::new(apu, gfx_device, joypad_proider),
             m_cycle_counter:0,
+            external_memory_bus: ExternalMemoryBus::new(mbc),
+=======
+            io_bus:IoBus::new(apu, gfx_device, joypad_proider, mbc.is_cgb_mode()),
             external_memory_bus: ExternalMemoryBus::new(mbc, boot_rom),
+>>>>>>> 9045db1 (First support for CGB features in the ppu)
             oucupied_access_bus:None,
             hram:[0;HRAM_SIZE],
+            interupt_enable_register:0,
+            boot_rom:boot_rom,
         }
     }
 
     pub fn new(mbc:&'a mut Box<dyn Mbc>, apu:GbApu<D>, gfx_device: G, joypad_proider:J)->Self{
-        let mut mmu = GbMmu::with_bootrom(mbc, Bootrom::None, apu, gfx_device, joypad_proider);
+        let mut mmu = GbMmu::new_with_bootrom(mbc, Bootrom::None, apu, gfx_device, joypad_proider);
 
         //Setting the bootrom register to be set (the boot sequence has over)
         mmu.write(BOOT_REGISTER_ADDRESS, 1, 0);

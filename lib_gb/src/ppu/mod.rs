@@ -5,4 +5,4 @@ pub mod colors;
 pub mod ppu_register_updater;
 pub mod fifo;
 pub mod gfx_device;
-mod sprite_attribute;
+mod attributes;

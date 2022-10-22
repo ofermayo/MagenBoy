@@ -58,7 +58,7 @@ pub struct GbPpu<GFX: GfxDevice>{
     sprite_fetcher:SpriteFetcher,
     stat_triggered:bool,
     trigger_stat_interrupt:bool,
-    next_state:PpuState,
+    next_state:PpuState
     is_cgb_mode: bool,
 }
 
@@ -99,10 +99,15 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
             stat_triggered:false,
             trigger_stat_interrupt:false,
             bg_fetcher:BackgroundFetcher::new(cgb_mode),
+<<<<<<< HEAD
+            sprite_fetcher:SpriteFetcher::new(),
+=======
             sprite_fetcher:SpriteFetcher::new(cgb_mode),
+            push_lcd_buffer:Vec::<Color>::new(),
+>>>>>>> 1d5ba0e (Add support for gbc priority)
             pixel_x_pos:0,
             scanline_started:false,
-            next_state:PpuState::OamSearch,
+            next_state:PpuState::OamSearch
             is_cgb_mode:cgb_mode,
         }
     }
@@ -189,6 +194,7 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
         while m_cycles_counter < m_cycles{
             match self.next_state{
                 PpuState::OamSearch=>{
+<<<<<<< HEAD
                     self.state = PpuState::OamSearch;
                     // first iteration
                     if self.m_cycles_passed == 0{
@@ -201,11 +207,7 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
                             if end_x > 0 && self.ly_register + 16 >= end_y && self.ly_register + 16 < end_y + sprite_height {
                                 let tile_number = self.oam[oam_entry_address + 2];
                                 let attributes = self.oam[oam_entry_address + 3];
-                                self.sprite_fetcher.oam_entries[self.sprite_fetcher.oam_entries_len as usize] = if self.is_cgb_mode{
-                                    SpriteAttributes::new_gbc(end_y, end_x, tile_number, attributes, oam_index as u8)
-                                }else{
-                                    SpriteAttributes::new_gb(end_y, end_x, tile_number, attributes)
-                                };
+                        self.sprite_fetcher.oam_entries[self.sprite_fetcher.oam_entries_len as usize] = if self.is_cgb_mode{SpriteAttributes::new_gbc(end_y, end_x, tile_number, attributes)}else{SpriteAttributes::new_gb(end_y, end_x, tile_number, attributes)};
                                 self.sprite_fetcher.oam_entries_len += 1;
                                 if self.sprite_fetcher.oam_entries_len == MAX_SPRITES_PER_LINE as u8{
                                     break;
@@ -214,15 +216,39 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
                         }
 
                         self.sprite_fetcher.oam_entries[0..self.sprite_fetcher.oam_entries_len as usize]
-                            .sort_by(|s1:&SpriteAttributes, s2:&SpriteAttributes| s1.x.cmp(&s2.x));
+                            .sort_by(|s1:&SpriteAttribute, s2:&SpriteAttribute| s1.x.cmp(&s2.x));
+=======
+                    let oam_index = self.t_cycles_passed / 2;
+                    let oam_entry_address = (oam_index * OAM_ENTRY_SIZE) as usize;
+                    let end_y = self.oam[oam_entry_address];
+                    let end_x = self.oam[oam_entry_address + 1];
+                
+                    if end_x > 0 && self.ly_register + 16 >= end_y && self.ly_register + 16 < end_y + sprite_height && self.sprite_fetcher.oam_entries_len < MAX_SPRITES_PER_LINE as u8{
+                        let tile_number = self.oam[oam_entry_address + 2];
+                        let attributes = self.oam[oam_entry_address + 3];
+                        self.sprite_fetcher.oam_entries[self.sprite_fetcher.oam_entries_len as usize] = if self.is_cgb_mode{SpriteAttributes::new_gbc(end_y, end_x, tile_number, attributes, oam_index as u8)}else{SpriteAttributes::new_gb(end_y, end_x, tile_number, attributes)};
+                        self.sprite_fetcher.oam_entries_len += 1;
+>>>>>>> 1d5ba0e (Add support for gbc priority)
                     }
                     
                     let scope_m_cycles_passed = std::cmp::min(m_cycles as u16, OAM_SEARCH_M_CYCLES_LENGTH - self.m_cycles_passed);
                     self.m_cycles_passed += scope_m_cycles_passed;
                     m_cycles_counter += scope_m_cycles_passed as u32;
                     
+<<<<<<< HEAD
                     if self.m_cycles_passed == OAM_SEARCH_M_CYCLES_LENGTH{
                         self.next_state = PpuState::PixelTransfer;
+=======
+                    if self.t_cycles_passed == OAM_SEARCH_T_CYCLES_LENGTH{
+                        if self.ly_register >= 0x38 - 16{
+                            println!("test");
+                        }
+                        
+                        let slice = self.sprite_fetcher.oam_entries[0..self.sprite_fetcher.oam_entries_len as usize].as_mut();
+                        slice.sort_by(|s1:&SpriteAttributes, s2:&SpriteAttributes| s1.x.cmp(&s2.x));
+                        
+                        self.state = PpuState::PixelTransfer;
+>>>>>>> 1d5ba0e (Add support for gbc priority)
                         self.scanline_started = false;
                     }
                 }
@@ -346,11 +372,48 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
             }
         }
 
-        let (bg_pixel_color_num, bg_cgb_attribute) = self.bg_fetcher.fifo.remove();
+            let (bg_pixel_color_num, bg_cgb_attribute) = self.bg_fetcher.fifo.remove();
+<<<<<<< HEAD
         let bg_pixel = self.bg_color_mapping[bg_pixel_color_num as usize];
-        let pixel = self.get_correct_pixel(bg_cgb_attribute, bg_pixel, bg_pixel_color_num);
-        self.push_pixel(Color::into(pixel));
-        self.pixel_x_pos += 1;
+        let pixel = if !(self.sprite_fetcher.fifo.len() == 0){
+                let (pixel, oam_attribute_index) = self.sprite_fetcher.fifo.remove();
+                let pixel_oam_attribute = &self.sprite_fetcher.oam_entries[oam_attribute_index as usize];
+
+                if pixel == 0 || (pixel_oam_attribute.attribute.priority && bg_pixel_color_num != 0){
+                    match bg_cgb_attribute{
+                        Option::None=>bg_pixel,
+                        Option::Some(attribute)=>{
+                            Self::get_color_from_color_ram(&self.bg_color_ram, attribute.cgb_pallete_number, bg_pixel_color_num)       
+                        }
+                    }
+            }
+            else{
+                    let sprite_pixel = match pixel_oam_attribute.palette_number{
+                        Pallete::GbPallete(pallete)=>{
+                            if pallete{
+                                self.obj_color_mapping1[pixel as usize]
+                }
+                else{
+                                self.obj_color_mapping0[pixel as usize]
+                            }
+                        }
+                        Pallete::GbcPallete(pallete)=>{
+                            Some(Self::get_color_from_color_ram(&self.obj_color_ram, pallete, pixel))
+                        }
+                };
+
+                sprite_pixel.expect("Corruption in the object color pallete")
+            }
+        }
+        else{
+                match bg_cgb_attribute{
+=======
+            let bg_pixel = self.bg_color_mapping[bg_pixel_color_num as usize];
+            let pixel = self.get_correct_pixel(bg_cgb_attribute, bg_pixel, bg_pixel_color_num);
+
+            self.push_lcd_buffer.push(pixel);
+            self.pixel_x_pos += 1;
+        }
     }
 
     fn get_correct_pixel(&mut self, bg_cgb_attribute: Option<super::attributes::BackgroundAttributes>, bg_pixel: Color, bg_pixel_color_num: u8) -> Color {
@@ -375,10 +438,25 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
 
             if oam_pixel == 0 || (pixel_oam_attribute.attribute.priority && bg_pixel_color_num != 0){
                 return match bg_cgb_attribute{
+>>>>>>> 1d5ba0e (Add support for gbc priority)
                     Option::None=>bg_pixel,
                     Option::Some(attribute)=>{
                         Self::get_color_from_color_ram(&self.bg_color_ram, attribute.cgb_pallete_number, bg_pixel_color_num)       
                     }
+<<<<<<< HEAD
+                }
+        };
+
+        self.push_pixel(Color::into(pixel));
+        self.pixel_x_pos += 1;
+    }
+
+    fn push_pixel(&mut self, pixel: Pixel) {
+        self.screen_buffers[self.current_screen_buffer_index][self.screen_buffer_index] = pixel;
+        self.screen_buffer_index += 1;
+        if self.screen_buffer_index == SCREEN_WIDTH * SCREEN_HEIGHT{
+           self.swap_buffer();
+=======
                 };
             }
             else{
@@ -396,26 +474,10 @@ impl<GFX:GfxDevice> GbPpu<GFX>{
                     }
                 };
 
-                sprite_pixel.expect("Corruption in the object color pallete")
+                return sprite_pixel.expect("Corruption in the object color pallete");
             }
+>>>>>>> 1d5ba0e (Add support for gbc priority)
         }
-        else{
-                match bg_cgb_attribute{
-                    Option::None=>bg_pixel,
-                    Option::Some(attribute)=>{
-                        Self::get_color_from_color_ram(&self.bg_color_ram, attribute.cgb_pallete_number, bg_pixel_color_num)       
-                    }
-                }
-        };
-        self.push_pixel(Color::into(pixel));
-        self.pixel_x_pos += 1;
-    }
-
-    fn push_pixel(&mut self, pixel: Pixel) {
-        self.screen_buffers[self.current_screen_buffer_index][self.screen_buffer_index] = pixel;
-        self.screen_buffer_index += 1;
-        if self.screen_buffer_index == SCREEN_WIDTH * SCREEN_HEIGHT{
-           self.swap_buffer();
     }
 
     fn get_color_from_color_ram(color_ram:&[u8;64], pallete: u8, pixel: u8) -> Color {

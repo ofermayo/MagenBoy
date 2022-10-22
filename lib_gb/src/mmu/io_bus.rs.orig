@@ -4,7 +4,11 @@ use crate::{
     timer::{timer_register_updater::*, gb_timer::GbTimer}, 
     keypad::{joypad_provider::JoypadProvider, joypad_handler::JoypadHandler}
 };
-use super::{interrupts_handler::*, io_ports::*, oam_dma_controller::OamDmaController, vram_dma_controller::VramDmaController, external_memory_bus::ExternalMemoryBus, access_bus::AccessBus};
+<<<<<<< HEAD
+use super::{interrupts_handler::*, io_ports::*, oam_dma_controller::OamDmaController};
+=======
+use super::{interrupts_handler::*, memory::*,io_ports::*, oam_dma_controller::OamDmaController, vram_dma_controller::VramDmaController, external_memory_bus::ExternalMemoryBus, access_bus::AccessBus};
+>>>>>>> 1dddba0 (Add the vram dma to the mmu and the io bus)
 
 pub const IO_PORTS_SIZE:usize = 0x80;
 const WAVE_RAM_START_INDEX:u16 = 0x30;
@@ -95,11 +99,6 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> IoBus<AD, GFX, JP>{
             KEY1_REGISTER_INDEX=>self.speed_switch_register | 0b0111_1110,
             // VRAM DMA
             HDMA5_REGISTER_INDEX=>self.vram_dma_controller.get_mode_length(),
-            //Color ram
-            BGPI_REGISTER_INDEX=>get_bgpi(&self.ppu),
-            BGPD_REGISTER_INDEX=>get_bgpd(&self.ppu),
-            OBPI_REGISTER_INDEX=>get_obpi(&self.ppu),
-            OBPD_REGISTER_INDEX=>get_obpd(&self.ppu),
             //Joypad
             JOYP_REGISTER_INDEX => self.joypad_handler.register,
             _=>0xFF
@@ -165,12 +164,6 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> IoBus<AD, GFX, JP>{
             HDMA3_REGISTER_INDEX=>self.vram_dma_controller.set_dest_high(value),
             HDMA4_REGISTER_INDEX=>self.vram_dma_controller.set_dest_low(value),
             HDMA5_REGISTER_INDEX=>self.vram_dma_controller.set_mode_length(value),
-            // COLOR Ram
-            BGPI_REGISTER_INDEX=>set_bgpi(&mut self.ppu, value),
-            BGPD_REGISTER_INDEX=>set_bgpd(&mut self.ppu, value),
-            OBPI_REGISTER_INDEX=>set_obpi(&mut self.ppu, value),
-            OBPD_REGISTER_INDEX=>set_obpd(&mut self.ppu, value),
-
             JOYP_REGISTER_INDEX => self.joypad_handler.set_register(value),
             _=>{}
         }
@@ -178,11 +171,11 @@ impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> IoBus<AD, GFX, JP>{
 }
 
 impl<AD:AudioDevice, GFX:GfxDevice, JP:JoypadProvider> IoBus<AD, GFX, JP>{
-    pub fn new(apu:GbApu<AD>, gfx_device:GFX, joypad_provider:JP, cgb_mode:bool)->Self{
+    pub fn new(apu:GbApu<AD>, gfx_device:GFX, joypad_provider:JP)->Self{
         Self{
             apu,
             timer:GbTimer::default(),
-            ppu:GbPpu::new(gfx_device, cgb_mode),
+            ppu:GbPpu::new(gfx_device),
             oam_dma_controller: OamDmaController::new(),
             vram_dma_controller: VramDmaController::new(),
             interrupt_handler: InterruptsHandler::default(),

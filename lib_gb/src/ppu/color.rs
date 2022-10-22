@@ -49,3 +49,14 @@ impl From<Color> for Pixel{
         }
     }
 }
+
+impl From<u16> for Color{
+    // color is RGB555 u16 value
+    fn from(color:u16)->Color{
+        Color{
+            r:(color as u8 & 0b1_1111)<<3, 
+            g: ((color >> 5) as u8 & 0b1_1111)<<3, 
+            b: ((color >> 10) as u8 & 0b1_1111)<<3
+        }
+    }
+}
